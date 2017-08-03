@@ -358,6 +358,7 @@ const verifyPublicKey = function () {
   // 1. Compute the hash of the data. 
   // 2. Decrypt the digital sig using the sender's public key 
   // 3. Compare the 2 hash values. 
+  // https://github.com/rzcoder/node-rsa 
 };
 
 const serverVerify = function(assertion) {
