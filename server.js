@@ -151,20 +151,82 @@ const serverRegisterCred = function (accountId, accountName, displayName,
   const credId = authDataDict.credId;
 
   accountDB.put({
-    _id: accountId,
+    _id: accountId.toString(),
     accountName: accountName,
     displayName, displayName,
-    publicKeyCred: {
-      authDataDict: authDataDict,
-    },
+    publicKeyCreds: [{
+      credId: authDataDict.credId,
+      publicKeyDict: authDataDict.publicKeyDict,
+      AAGUID: authDataDict.AAGUID,
+      counter: authDataDict.counter,
+      rpIdHash: authDataDict.rpIdHash,
+      flagsDict: authDataDict.flagsDict,
+    }]
   }).then(function (response){
     if (response.ok) {
-      console.log('store data for (${response.ok})');
+      console.log('store data for' + response.ok);
     } else {
       console.log('got data')
     }
   }).catch(function (err) {
-      console.log('store database failed: (${err})');
+      console.log('store database failed: ');
+      console.log(err);
   });
+
+};
+
+var publicKeyDict;
+
+const serverVerifyCred = function (id, rawId, clientDataJSON, authenticatorData, sig) {
+  // 1. Verify client data
+  const clientDataDict = verifyClientData('verifyCred', clientDataJSON);
+
+  // 2. Verify RP ID Hash
+  const authDataDict = verifyAuthData(authenticatorData);
+
+  var cryptoKey;
+  var aDataHash;
+
+  // 3. Using credential’s id attribute (or the corresponding rawId, if base64url encoding
+  //    is inappropriate for your use case), look up the corresponding credential public key.
+  accountDB.createIndex({  
+    index: {fields: ['publicKeyCreds']}  /* Create index to search the db by attribute */
+  }).then(function () {
+    return accountDB.find({
+      selector: {
+        publicKeyCreds: {
+          $elemMatch: {
+            credId: authDataDict.credId,
+        }}
+      }
+    })
+  }).then(function(result) {
+    if (result.length != 1) {
+      throw new Error('more than 1 cred is found');
+    } else {
+      var publicKeyDict = result[0].publicKeyCreds[0].publicKeyDict;
+      return crypto.subtle.importKey(
+        // RSASSA-PKCS1-v1_5 is the same as RS256.
+      )
+    }
+  }).then(function (publicCryptoKey) {
+    cryptoKey = publicCryptoKey;
+    return crypto.subtle.digest(clientDataDict.hashAlg, clientDataJSON);
+  }).then(function (clientDataHash) {
+    aDataHash = new ArrayBuffer(authenticatorData.length + clientDataHash.length);
+    aDataHash = ;
+    
+    // 5. Using the credential public key looked up in step 1, verify that sig is a valid signature over
+    //    the binary concatenation of aData and hash.
+    // RSASSA-PKCS1-v1_5 is the same as RS256.
+    return crypto.subtle.verify(publicKeyDict.alg, publicKeyDict.key, sig, aDataHash);
+  }).then(function (isValid) {
+    gotoHome();
+
+  }).catch(function (err) {
+    console.log(err);
+  });
+    
+  
 
 };

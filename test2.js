@@ -21,6 +21,10 @@ const buttonToGreen = function(button) {
   button.style.color = 'green';
 };
 
+var gotoHome = function() {
+  // Do nothing for now. 
+};
+
 /*
  Client Side Functions: 
   - createCred 
@@ -104,10 +108,11 @@ const verify = function () {
   };
 
   const rpId = window.location.hostname;
-  logClientScriptInfo(rpId, newChallenge);
+  logClientScriptInfo('verifyCred', rpId, newChallenge);
 
   navigator.credentials.get({'publicKey': options}).then(function (assertion) {
-    serverVerify(assertion);
+    serverVerifyCred(credInfo.id, credInfo.rawId, credInfo.response.clientDataJSON, 
+      credInfo.response.authenticatorData, credInfo.response.signature);
   }).catch(function(err) {
     alert('verify error: ${err}');
   });
