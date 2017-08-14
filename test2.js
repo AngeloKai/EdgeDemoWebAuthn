@@ -28,7 +28,7 @@ const buttonToGreen = function(button) {
 */
 
 const logClientScriptInfo = function(stage, rpId, challenge) {
-  const origin = window.location;
+  const origin = window.location.hostname;
   localStorage.setItem(stage + '_ClientSide_Origin', origin);
 
   localStorage.setItem(stage + '_ClientSide_RpId', rpId);
@@ -82,7 +82,7 @@ const createCred = function(rpName, accountId, accountName, accountDisplayName, 
     authenticatorSelection: authnrOption,
   };
 
-  const rpId = window.location;
+  const rpId = window.location.hostname;
   logClientScriptInfo('createCred', rpId, newChallenge);
   
   navigator.credentials.create({'publicKey': publicKeyOptions}).then(function (credInfo) {
@@ -103,7 +103,7 @@ const verify = function () {
     challenge: new Uint8Array(stringToBytes('CTAP')),
   };
 
-  const rpId = window.location;
+  const rpId = window.location.hostname;
   logClientScriptInfo(rpId, newChallenge);
 
   navigator.credentials.get({'publicKey': options}).then(function (assertion) {

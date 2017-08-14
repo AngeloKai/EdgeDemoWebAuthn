@@ -1,4 +1,4 @@
-const db = new PouchDB('creds');
+const accountDB = new PouchDB('accounts');
 // The remoteCouch should be updated if a remote server is used for this app. 
 const remoteCouch = false;
 
@@ -36,11 +36,11 @@ const verifyClientData = function (stage, buf) {
   if (receivedOrigin == sentOrigin) {
     console.log('Registration Step 2: Origin in clientDataJSON matches the Server');
   } else {
-    console.log('origin doesn\t match');
+    console.log('origin does not match');
     //throw new Error('origin doesn\'t match');
   }
 
-  const result = {
+  var result = {
     challeng: receivedChallengeStr,
     origin: receivedOrigin,
     hashAlg: clientDataJsonObj.hashAlg,
@@ -55,17 +55,28 @@ const verifyClientData = function (stage, buf) {
 
 /* More information about authenticator data can be found here: 
   https://w3c.github.io/webauthn/#sec-attestation-data 
+  
+  verifyAuthData returns: 
+  - AAGUID (as string representation of its hex characters)
+  - counter (same above)
+  - credId (same above)
+  - rpIdHash, a hash of a buffer containing the UTF-8 encoded RP ID.  
+  - flagsDict, a dictionary of set flags, including AT, TUP, and ED.
+  - publicKeyDict, a dictionary of public key info. 
+    In the case of "RS256" / "RS384" / "RS512" / "PS256" / "PS384" / "PS512":
+      The dict will have alg, e, n.
+    In the case of "ES256" / "ES384" / "ES512":
+      The dict will have alg, x, y. 
 */
 const verifyAuthData = function (authData) {
 
   const authDataHexArr = buf2hex(authData);
   const authDataLength = authDataHexArr.length;
   const rpIdHash = authDataHexArr.slice(0, 64);
+  var result = {rpIdHash};
   const flagsArr = authDataHexArr.slice(64, 66);
   const counter = authDataHexArr.slice(66, 74);
-  const AAGUID = new Uint8Array();
-  const credId = new Uint8Array();
-  const publicKeyDict = new Map();
+  result.counter = counter;
 
   const flagsDict = {};
 
@@ -91,37 +102,26 @@ const verifyAuthData = function (authData) {
     }
   }
 
+  result.flagsDict = flagsDict;
+
   // If Attestation Data is part of Authenticator Data: 
   if (flagsDict.AT) {
 
-    AAGUID = authDataHexArr.slice(74, 106);
+    result.AAGUID = authDataHexArr.slice(74, 106);
 
     const credIdByteLength = parseInt(authDataHexArr.slice(106, 110), 16);
     const endOfCredId = 110 + (credIdByteLength * 2);
-    credId = authDataHexArr.slice(110, endOfCredId);
+    result.credId = authDataHexArr.slice(110, endOfCredId);
 
     const publicKeyCborHex = authDataHexArr.slice(endOfCredId, authDataHexArr.length);
     const publicKeyCborUint8 = hexstr2uint8(publicKeyCborHex);
-    const publicKeyCborObj = CBOR.decode(publicKeyCborUint8.buffer);
-
-    publicKeyDict.set(algName, publicKeyCborObj.algName);
-
-    switch (publicKeyCborObj.algName) {
-      case 'RS256' || 'RS384' || 'RS512' || 'PS256' || 'PS384' || 'PS512': 
-        publicKeyDict.set('n', publicKeyCborObj.n);
-        publicKeyDict.set('e', publicKeyCborObj.e);
-        break;
-      case 'ES256' || 'ES384' || 'ES512':
-        publicKeyDict.set('x', publicKeyCborObj.x);
-        publicKeyDict.set('y', publicKeyCborObj.y);
-        break;
-    }
+    result.publicKeyDict = CBOR.decode(publicKeyCborUint8.buffer);
   }
 
   const ClientSide_RpIdBuf = new TextEncoder().encode(localStorage.getItem('createCred' + '_ClientSide_RpId'));
   crypto.subtle.digest(SHA256, ClientSide_RpIdBuf).then(function (clientRpIdHash) {
 
-    if (clientRpIdHash == authDataHexArr.rpIdHash) {
+    if (buf2hex(clientRpIdHash) == rpIdHash) {
       console.log('Registration step 3: The RP ID hash in authData is matches the expectation')
     } else {
       throw new Error('RP ID hash doesn\'t match');
@@ -131,30 +131,7 @@ const verifyAuthData = function (authData) {
     console.log(err);
   }); 
 
-
-  // This approach won't work if there's extension in here. 
-  // const attestationData = authData.slice(36, authDataLength - 1);
-  // const credIdArr = attestationData.slice(18, endOfCredId);
-  // const credIdStr = new TextDecoder().decode(credIdArr);
-  // const AAGUID = attestationData.slice(0, 15);
-  // const AAGUIDStr = ab2str(AAGUID);
-
-  // const publicKeyCborDecoded = CBOR.decode(publicKeyCBOR);
-  // console.log(publicKeyCborDecoded);
-
-  return {
-    rpIdHash: authData.slice(0, 31),
-    flags: flagsDict,
-    counter: authData.slice(33, 36),
-    authDataByteLength: authData.byteLength,
-    attestationData: attestationData,
-    AAGUID: AAGUID,
-    AAGUIDStr: AAGUIDStr,
-    credIdArr: credIdArr,
-    credIdStr: credIdStr,
-    publicKeyCBOR: publicKeyCBOR,
-    publicKeyDict: publicKeyDict,
-  }
+  return result;
 
 };
 
@@ -165,29 +142,29 @@ const serverRegisterCred = function (accountId, accountName, displayName,
   
   // 1. Verify client data 
   const clientDataDict = verifyClientData('createCred', clientDataJSON);
+  // hashAlg needs to be stored. 
 
   const attestationObjDict = CBOR.decode(attestationObj);
 
   const authDataDict = verifyAuthData(attestationObjDict.authData);
 
-  db.put({
+  const credId = authDataDict.credId;
+
+  accountDB.put({
     _id: accountId,
     accountName: accountName,
-    accountDisplayName: displayName,
-    credId: id,
-    credRawId: rawId,
-    hashAlg: clientDataDict.hashAlg,
-    attStmt: attestationObjDict.attStmt,
-    fmt: attestationObjDict.fmt,
-    publicKeyDict: authDataDict.publicKeyDict,
-    AAGUID: authDataDict.AAGUID,
-  }).then(function (response) {
-    console.log(response);
-    console.log('finish registration');
-
-    return response.ok;
-    // handle response
+    displayName, displayName,
+    publicKeyCred: {
+      authDataDict: authDataDict,
+    },
+  }).then(function (response){
+    if (response.ok) {
+      console.log('store data for (${response.ok})');
+    } else {
+      console.log('got data')
+    }
   }).catch(function (err) {
-    console.log(err);
+      console.log('store database failed: (${err})');
   });
-}
+
+};
