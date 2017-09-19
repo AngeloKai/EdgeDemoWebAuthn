@@ -21,9 +21,7 @@ const buttonToGreen = function(button) {
   button.style.color = 'green';
 };
 
-var gotoHome = function() {
-  // Do nothing for now. 
-};
+const createCredForm = document.getElementById('credCredForm');
 
 /*
  Client Side Functions: 
@@ -103,16 +101,17 @@ const createCred = function(rpName, accountId, accountName, accountDisplayName, 
 
 
 const verify = function () {
+  var newChallenge =  new TextEncoder().encode('CTAP');
   const options = {
-    challenge: new Uint8Array(stringToBytes('CTAP')),
+    challenge: newChallenge,
   };
 
   const rpId = window.location.hostname;
   logClientScriptInfo('verifyCred', rpId, newChallenge);
 
   navigator.credentials.get({'publicKey': options}).then(function (assertion) {
-    serverVerifyCred(credInfo.id, credInfo.rawId, credInfo.response.clientDataJSON, 
-      credInfo.response.authenticatorData, credInfo.response.signature);
+    serverVerifyCred(assertion.id, assertion.rawId, assertion.response.clientDataJSON, 
+      assertion.response.authenticatorData, assertion.response.signature);
   }).catch(function(err) {
     alert('verify error: ${err}');
   });
@@ -121,6 +120,14 @@ const verify = function () {
 /* 
   Add Event Listener 
 */
+
+// if (createCredForm.addEventListener) {
+//   createCredForm.addEventListener('submit', createCredPerAcct)
+// }
+
+// credCredForm.addEventListener('submit', function() {
+
+// });
 
 button1.addEventListener('click', function() {
   buttonToBlack(button1);

@@ -38,3 +38,20 @@ const hexstr2uint8 = function (hexStr) {
 
   return uint8;
 };
+
+const concatArrBuffer = function (buffer1, buffer2) {
+    var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
+    tmp.set(new Uint8Array(buffer1), 0);
+    tmp.set(new Uint8Array(buffer2), buffer2.byteLength);
+    return tmp.buffer;
+};
+
+function arrayBufferToBase64(buffer) {
+    var binaryStr = '';
+    var bytes = new Uint8Array( buffer );
+    var len = bytes.byteLength;
+    for (var i = 0; i < len; i++) {
+        binaryStr += String.fromCharCode( bytes[ i ] );
+    }
+    return btoa( binaryStr );
+}
